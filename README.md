@@ -23,7 +23,6 @@
 - [Template Functions](#-template-functions)
 - [Security Tips](#-security-tips)
 - [Examples](#-examples)
-- [Contributing](#-contributing)
 - [Community](#-community)
 
 ## 🌟 Features
