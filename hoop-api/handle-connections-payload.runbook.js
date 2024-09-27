@@ -64,8 +64,8 @@ async function createConnection(connection) {
     redact_types: connection.datamasking ? redact_types : [],
     reviewers: connection.reviewGroups || [],
     access_mode_runbooks: connection.accessMode.runbook ? "enabled" : "disabled",
-    access_mode_exec: connection.accessMode.native ? "enabled" : "disabled",
-    access_mode_connect: connection.accessMode.web ? "enabled" : "disabled",
+    access_mode_exec: connection.accessMode.web ? "enabled" : "disabled",
+    access_mode_connect:  connection.accessMode.native ? "enabled" : "disabled",
     access_schema: connection.schema ? "enabled" : "disabled"
   };
   console.log("Connection parsed: ", payload, "\n");
