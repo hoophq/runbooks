@@ -59,7 +59,7 @@ async function getConnectionByName(connectionName) {
     }
   });
 
-  if (response.ok) {
+  if (response.status === 200) {
     console.log(`Connection "${connectionName}" found.`);
     return response.json();
   } else if (response.status === 404) {
@@ -81,18 +81,24 @@ async function createOrUpdateConnection(connection) {
     console.log("Updating connection...\n");
     console.log(`Merging new information with existing connection "${connection.name}"...`);
 
+    const secretsParsed = parseSecrets(connection.secrets);
+    const accessModeRunbooks = connection.hasOwnProperty("accessMode") ? connection.accessMode.runbook : existingConnection.access_mode_runbooks;
+    const accessModeExec = connection.hasOwnProperty("accessMode") ? connection.accessMode.web : existingConnection.access_mode_exec;
+    const accessModeConnect = connection.hasOwnProperty("accessMode") ? connection.accessMode.native : existingConnection.access_mode_connect;
+    const accessSchema = connection.hasOwnProperty("schema") ? connection.schema : existingConnection.access_schema;
+
     // Merge the existing connection data with the new connection data
     const updatedConnection = {
       ...existingConnection,
       agent_id: connection.agentId || existingConnection.agent_id,
-      secrets: { ...existingConnection.secrets, ...connection.secrets }, // Deletar tudo ou append
-      access_mode_runbooks: connection.accessMode.runbook || existingConnection.accessMode.runbook,
-      access_mode_exec: connection.accessMode.web || existingConnection.accessMode.web,
-      access_mode_connect: connection.accessMode.native || existingConnection.accessMode.native,
+      secret: { ...existingConnection.secrets, ...secretsParsed }, // Deletar tudo ou append
+      access_mode_runbooks: (accessModeRunbooks || accessModeRunbooks === "enabled") ? "enabled" : "disabled",
+      access_mode_exec: (accessModeExec || accessModeExec === "enabled") ? "enabled" : "disabled",
+      access_mode_connect: (accessModeConnect || accessModeConnect === "enabled") ? "enabled" : "disabled",
       redact_enabled: connection.datamasking !== undefined ? connection.datamasking : existingConnection.redact_enabled,
       redact_types: connection.datamasking ? redact_types : existingConnection.redact_types,
       reviewers: [...new Set([...(existingConnection.reviewers || []), ...(connection.reviewGroups || [])])],
-      access_schema: connection.schema !== undefined ? connection.schema : existingConnection.access_schema,
+      access_schema: (accessSchema || accessSchema === "enabled") ? "enabled" : "disabled"
     };
 
     // Make the update request to update the existing connection
@@ -313,10 +319,10 @@ async function handleActions(payload) {
 //         "native": false
 //       },
 //       "runbook_config": "/account-statment-prd/",
-//       "datamasking": true,
-//       "enableReview": true,
+//       "datamasking": false,
+//       "enableReview": false,
 //       "reviewGroups": ["group1", "group2"],
-//       "schema": true,
+//       "schema": false,
 //       "accessControl": ["USER"]
 //     },
 //     {
