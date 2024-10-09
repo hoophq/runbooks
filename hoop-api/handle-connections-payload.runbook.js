@@ -47,43 +47,103 @@ function parseSecrets(secrets) {
   }, {});
 }
 
-// Function create connection
-async function createConnection(connection) {
-  console.log("CREATE CONNECTION\n");
+// Function to get a connection by name
+async function getConnectionByName(connectionName) {
+  console.log(`Checking if connection "${connectionName}" exists...`);
 
-  console.log("Parsing connection...");
-  const secretsParsed = parseSecrets(connection.secrets)
-
-  const payload = {
-    name: connection.name,
-    type: connectionTypesDictionary[connection.type].type,
-    subtype: connectionTypesDictionary[connection.type].subtype,
-    secret: secretsParsed,
-    agent_id: connection.agentId,
-    redact_enabled: connection.datamasking,
-    redact_types: connection.datamasking ? redact_types : [],
-    reviewers: connection.reviewGroups || [],
-    access_mode_runbooks: connection.accessMode.runbook ? "enabled" : "disabled",
-    access_mode_exec: connection.accessMode.web ? "enabled" : "disabled",
-    access_mode_connect:  connection.accessMode.native ? "enabled" : "disabled",
-    access_schema: connection.schema ? "enabled" : "disabled"
-  };
-  console.log("Connection parsed: ", payload, "\n");
-
-  console.log("Requesting connection creation...");
-  const response = await fetch(`${apiUrl}/connections`, {
-    method: 'POST',
+  const response = await fetch(`${apiUrl}/connections/${connectionName}`, {
+    method: 'GET',
     headers: {
       'Api-Key': apiKey,
       'Content-Type': 'application/json'
-    },
-    body: JSON.stringify(payload)
+    }
   });
 
-  const result = await response.json();
-  console.log('Connection created successfully:', result, "\n");
-  console.log("--------------------------------\n");
-  return result;
+  if (response.ok) {
+    console.log(`Connection "${connectionName}" found.`);
+    return response.json();
+  } else if (response.status === 404) {
+    console.log(`Connection "${connectionName}" does not exist.`);
+    return null;
+  } else {
+    throw new Error(`Error fetching connection by name: ${response.status}`);
+  }
+}
+
+// Function to create or update a connection
+async function createOrUpdateConnection(connection) {
+  console.log("CREATE OR UPDATE CONNECTION\n");
+
+  // Check if the connection already exists
+  const existingConnection = await getConnectionByName(connection.name);
+
+  if (existingConnection) {
+    console.log("Updating connection...\n");
+    console.log(`Merging new information with existing connection "${connection.name}"...`);
+
+    // Merge the existing connection data with the new connection data
+    const updatedConnection = {
+      ...existingConnection,
+      agent_id: connection.agentId || existingConnection.agent_id,
+      secrets: { ...existingConnection.secrets, ...connection.secrets }, // Deletar tudo ou append
+      access_mode_runbooks: connection.accessMode.runbook || existingConnection.accessMode.runbook,
+      access_mode_exec: connection.accessMode.web || existingConnection.accessMode.web,
+      access_mode_connect: connection.accessMode.native || existingConnection.accessMode.native,
+      redact_enabled: connection.datamasking !== undefined ? connection.datamasking : existingConnection.redact_enabled,
+      redact_types: connection.datamasking ? redact_types : existingConnection.redact_types,
+      reviewers: [...new Set([...(existingConnection.reviewers || []), ...(connection.reviewGroups || [])])],
+      access_schema: connection.schema !== undefined ? connection.schema : existingConnection.access_schema,
+    };
+
+    // Make the update request to update the existing connection
+    const response = await fetch(`${apiUrl}/connections/${connection.name}`, {
+      method: 'PUT',
+      headers: {
+        'Api-Key': apiKey,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(updatedConnection)
+    });
+
+    const result = await response.json();
+    console.log(`Connection "${connection.name}" updated successfully:`, result, "\n");
+    console.log("--------------------------------\n");
+    return result;
+  } else {
+    // If the connection doesn't exist, create a new one
+    console.log("Creating new connection...\n");
+    const secretsParsed = parseSecrets(connection.secrets);
+
+    const payload = {
+      name: connection.name,
+      type: connectionTypesDictionary[connection.type].type,
+      subtype: connectionTypesDictionary[connection.type].subtype,
+      secret: secretsParsed,
+      agent_id: connection.agentId,
+      redact_enabled: connection.datamasking,
+      redact_types: connection.datamasking ? redact_types : [],
+      reviewers: connection.reviewGroups || [],
+      access_mode_runbooks: connection.accessMode.runbook ? "enabled" : "disabled",
+      access_mode_exec: connection.accessMode.web ? "enabled" : "disabled",
+      access_mode_connect: connection.accessMode.native ? "enabled" : "disabled",
+      access_schema: connection.schema ? "enabled" : "disabled"
+    };
+
+    console.log("Requesting connection creation...");
+    const response = await fetch(`${apiUrl}/connections`, {
+      method: 'POST',
+      headers: {
+        'Api-Key': apiKey,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(payload)
+    });
+
+    const result = await response.json();
+    console.log('Connection created successfully:', result, "\n");
+    console.log("--------------------------------\n");
+    return result;
+  }
 }
 
 // Function to get plugins
