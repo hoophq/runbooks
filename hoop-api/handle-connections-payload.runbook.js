@@ -272,10 +272,13 @@ async function handleActions(payload) {
 
   for (const item of payload) {
     if (item.action === 'create') {
-      const createdConnection = await createConnection(item);
+      const createdOrUpdatedConnection = await createOrUpdateConnection(item);
 
       if (item.accessControl || item.runbook_config) {
-        await processUpdatePlugins({ ...item, connectionName: createdConnection.name, connectionId: createdConnection.id });
+        await processUpdatePlugins({
+          ...item, connectionName: createdOrUpdatedConnection.name, 
+          connectionId: createdOrUpdatedConnection.id 
+        });
       }
     }
 
