@@ -473,6 +473,17 @@ const incomingPayload = {
               description: 'Description here'
             }
           ]
+        },
+        cmdb_types: {
+          items: [
+            {
+              description: "Product Field",
+              jira_field: "customfield_10109",
+              jira_object_type: "Product",
+              required: true,
+              value: "pix"
+            }
+          ]
         }
       },
       ... or jiraTemplateId for an existing one.
