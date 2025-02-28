@@ -292,17 +292,22 @@ async function getPlugins() {
 }
 
 // Function to update the plugins
-async function updatePlugin(pluginName, connections) {
-  console.log('Parsing plugin ', pluginName, '...');
+async function updatePlugin(pluginName, connections, updatedConnection) {
+  console.log(`\nUpdating plugin ${pluginName} for connection "${updatedConnection.name}"...`);
   const payload = {
     name: pluginName,
     priority: 0,
     source: null,
     connections
   };
-  console.log(`Plugin ${pluginName} parsed:`, payload, '\n');
 
-  console.log(`Requesting plugin ${pluginName} update...`);
+  // Log the configuration that will be sent
+  console.log(`Request configuration for ${pluginName}:`, {
+    connection: updatedConnection,
+    total_connections: connections.length
+  }, '\n');
+
+  console.log(`Sending request to update plugin ${pluginName}...`);
   const response = await fetch(`${apiUrl}/plugins/${pluginName}`, {
     method: 'PUT',
     headers: {
@@ -313,56 +318,83 @@ async function updatePlugin(pluginName, connections) {
   });
 
   const result = await response.json();
-  console.log(`Plugin ${pluginName} updated successfully:`, result, '\n');
+  
+  // Log the response details
+  console.log(`Response from ${pluginName} update:`, {
+    status: response.status,
+    success: response.ok,
+    connection_found: result.connections?.some(conn => conn.id === updatedConnection.id),
+    connection_config: result.connections?.find(conn => conn.id === updatedConnection.id)
+  }, '\n');
+
+  if (!response.ok) {
+    console.log(`Warning: Plugin ${pluginName} update might have failed. Status: ${response.status}\n`);
+  }
 }
 
 // Function to process and associate the plugins to the original payload
 async function processUpdatePlugins(payload) {
-  console.log('PROCESSING UPDATE PLUGINS\n');
+  console.log(`\nPROCESSING UPDATE PLUGINS FOR CONNECTION "${payload.connectionName}"\n`);
   const plugins = await getPlugins();
 
   // Associate the plugins based on accessControl and runbook_config
   const accessControlPlugin = plugins.find(plugin => plugin.name === 'access_control');
-  console.log('Access Control Plugin: ', accessControlPlugin, '\n');
-
   const runbooksPlugin = plugins.find(plugin => plugin.name === 'runbooks');
-  console.log('Runbooks Plugin: ', runbooksPlugin, '\n');
 
   console.log('--------------------------------\n');
   // Update the Access Control plugin if accessControl exists in the payload
   if (payload.accessControl && accessControlPlugin) {
-    console.log('UPDATE PLUGIN ACCESS CONTROL\n');
+    console.log(`\nUPDATE ACCESS CONTROL PLUGIN FOR CONNECTION "${payload.connectionName}"\n`);
 
-    console.log('Parsing connections of Access Control plugin...');
-    const accessControlConnections = [
-      ...accessControlPlugin.connections,
-      {
-        id: payload.connectionId,
-        name: payload.connectionName,
-        config: [...payload.accessControl]
-      }
-    ];
-    console.log('Connections of Access Control parsed: ', accessControlConnections, '\n');
+    // Log existing configuration if found
+    const existingConfig = accessControlPlugin.connections.find(conn => conn.id === payload.connectionId);
+    if (existingConfig) {
+      console.log('Current configuration in Access Control plugin:', existingConfig, '\n');
+    }
 
-    await updatePlugin('access_control', accessControlConnections);
+    const newConnection = {
+      id: payload.connectionId,
+      name: payload.connectionName,
+      config: payload.accessControl
+    };
+
+    console.log('Configuration to be applied:', newConnection, '\n');
+
+    const accessControlConnections = existingConfig
+      ? accessControlPlugin.connections.map(conn => 
+          conn.id === payload.connectionId ? newConnection : conn
+        )
+      : [...accessControlPlugin.connections, newConnection];
+
+    await updatePlugin('access_control', accessControlConnections, newConnection);
     console.log('--------------------------------\n');
   }
 
   // Update the Runbooks plugin if runbook_config exists in the payload
   if (payload.runbook_config && runbooksPlugin) {
-    console.log('UPDATE PLUGIN RUNBOOKS\n');
-    console.log('Parsing connections of Runbooks plugin...\n');
-    const runbookConnections = [
-      ...runbooksPlugin.connections,
-      {
-        id: payload.connectionId,
-        name: payload.connectionName,
-        config: [payload.runbook_config]
-      }
-    ];
-    console.log('Connections of Runbooks parsed: ', runbookConnections, '\n');
+    console.log(`\nUPDATE RUNBOOKS PLUGIN FOR CONNECTION "${payload.connectionName}"\n`);
 
-    await updatePlugin('runbooks', runbookConnections);
+    // Log existing configuration if found
+    const existingConfig = runbooksPlugin.connections.find(conn => conn.id === payload.connectionId);
+    if (existingConfig) {
+      console.log('Current configuration in Runbooks plugin:', existingConfig, '\n');
+    }
+
+    const newConnection = {
+      id: payload.connectionId,
+      name: payload.connectionName,
+      config: [payload.runbook_config]
+    };
+
+    console.log('Configuration to be applied:', newConnection, '\n');
+
+    const runbookConnections = existingConfig
+      ? runbooksPlugin.connections.map(conn => 
+          conn.id === payload.connectionId ? newConnection : conn
+        )
+      : [...runbooksPlugin.connections, newConnection];
+
+    await updatePlugin('runbooks', runbookConnections, newConnection);
     console.log('--------------------------------\n');
   }
 }
