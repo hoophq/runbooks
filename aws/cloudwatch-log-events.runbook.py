@@ -1,7 +1,18 @@
 import boto3
 import os
 
-def get_latest_log_stream_name(client, log_group_name):
+log_group_name = '''
+{{ .logGroupName    | type "select"
+                    | description "The log group name from AWS Cloudwatch to fetch logs"
+                    | options   "/aws/containerinsights/hoop-prod/application"
+                                "/aws/containerinsights/hoop-prod/dataplane"
+                                "/aws/eks/hoop-prod/cluster"
+                                "/aws/lambda/logdna_cloudwatch"
+                                "/aws/rds/instance/hoopdb/postgresql"
+                    }}
+'''.strip()
+
+def get_latest_log_stream_name(client):
     stream_response = client.describe_log_streams(
         logGroupName=log_group_name,
         orderBy='LastEventTime',
@@ -21,7 +32,6 @@ def get_all_logs_from_stream_name(client, log_stream_name):
 
     # This is the pagination loop for get_log_events
     while True:
-        print(f"LOG GROUP NAME ---->>>>> {log_group_name}")
         if next_token:
             event_response = client.get_log_events(
                 logGroupName=log_group_name,
@@ -47,32 +57,17 @@ def get_all_logs_from_stream_name(client, log_stream_name):
         prev_token = next_token
     return all_events
 
-
-log_group_name = '''
-{{ .logGroupName    | type "select"
-                    | description "The log group name from AWS Cloudwatch to fetch logs"
-                    | options   "/aws/containerinsights/myapp-prod/application"
-                                "/aws/containerinsights/myapp-prod/dataplane"
-                                "/aws/eks/myapp-prod/cluster"
-                                "/aws/lambda/logdna_cloudwatch"
-                                "/aws/rds/instance/myappdb/postgresql"
-                    }}
-'''.strip()
-
-
-
 # Example usage
 if __name__ == "__main__":
     if not log_group_name:
         raise ValueError("log_group_name variable is not set")
     client = boto3.client('logs')
-    log_stream_name = get_latest_log_stream_name(client, log_group_name)
+    log_stream_name = get_latest_log_stream_name(client)
     all_logs = get_all_logs_from_stream_name(client, log_stream_name)
 
     print(f"stream_name={log_stream_name}\nlog_events={len(all_logs)}")
     print('-----')
 
-    # Print the 5 most recent logs
     for log in all_logs:
         print(log['message'])
         # print(f"Timestamp: {log['timestamp']}")
