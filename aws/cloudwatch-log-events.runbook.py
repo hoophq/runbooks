@@ -21,6 +21,7 @@ def get_all_logs_from_stream_name(client, log_stream_name):
 
     # This is the pagination loop for get_log_events
     while True:
+        print(f"LOG GROUP NAME ---->>>>> {log_group_name}")
         if next_token:
             event_response = client.get_log_events(
                 logGroupName=log_group_name,
