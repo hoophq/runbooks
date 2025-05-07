@@ -56,6 +56,7 @@ log_group_name = '''
                                 "/aws/lambda/logdna_cloudwatch"
                                 "/aws/rds/instance/myappdb/postgresql"
                                 "/aws/chatbot/core-team-testing"
+                                "/aws/apigateway/capi"
                     }}
 '''.strip()
 
