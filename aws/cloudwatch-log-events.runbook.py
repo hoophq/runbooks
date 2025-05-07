@@ -58,6 +58,7 @@ log_group_name = '''
                                 "/aws/chatbot/core-team-testing"
                                 "/aws/apigateway/capi"
                                 "/aws-glue/crawlers"
+                                "/aws-glue/jobs/error"
                     }}
 '''.strip()
 
