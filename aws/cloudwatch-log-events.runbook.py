@@ -6,7 +6,7 @@ def get_latest_log_stream_name(client, log_group_name):
         logGroupName=log_group_name,
         orderBy='LastEventTime',
         descending=True,
-        limit=1  # Just get the most recent stream
+        limit=2  # Just get the most recent stream
     )
     if not stream_response.get('logStreams'):
         print(f"No log streams found in log group: {log_group_name}")
