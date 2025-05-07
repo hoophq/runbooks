@@ -57,6 +57,7 @@ log_group_name = '''
                                 "/aws/rds/instance/myappdb/postgresql"
                                 "/aws/chatbot/core-team-testing"
                                 "/aws/apigateway/capi"
+                                "/aws-glue/crawlers"
                     }}
 '''.strip()
 
