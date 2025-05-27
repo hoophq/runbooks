@@ -58,7 +58,8 @@ log_group_name = '''
                                 "/aws/chatbot/core-team-testing"
                                 "/aws/apigateway/capi"
                                 "/aws-glue/crawlers"
-                                "/aws-glue/jobs/error"
+                                "/aws-glue/jobs/error" 
+                                "/aws/lambda/FbCapiAdapter-dev-SendEventsToFBFunction-017Xh2pse1tE" 
                     }}
 '''.strip()
 
