@@ -1,41 +1,6 @@
 const apiKey = process.env.API_KEY;
 const apiUrl = process.env.API_URL;
 
-const redact_types = [
-  'PHONE_NUMBER',
-  'CREDIT_CARD_NUMBER',
-  'AUTH_TOKEN',
-  'AWS_CREDENTIALS',
-  'AZURE_AUTH_TOKEN',
-  'BASIC_AUTH_HEADER',
-  'ENCRYPTION_KEY',
-  'GCP_API_KEY',
-  'GCP_CREDENTIALS',
-  'JSON_WEB_TOKEN',
-  'HTTP_COOKIE',
-  'OAUTH_CLIENT_SECRET',
-  'PASSWORD',
-  'SSL_CERTIFICATE',
-  'STORAGE_SIGNED_POLICY_DOCUMENT',
-  'STORAGE_SIGNED_URL',
-  'WEAK_PASSWORD_HASH',
-  'XSRF_TOKEN',
-  'CREDIT_CARD_TRACK_NUMBER',
-  'EMAIL_ADDRESS',
-  'IBAN_CODE',
-  'HTTP_COOKIE',
-  'IMEI_HARDWARE_ID',
-  'IP_ADDRESS',
-  'STORAGE_SIGNED_URL',
-  'URL',
-  'VEHICLE_IDENTIFICATION_NUMBER',
-  'BRAZIL_CPF_NUMBER',
-  'AMERICAN_BANKERS_CUSIP_ID',
-  'FDA_CODE',
-  'US_PASSPORT',
-  'US_SOCIAL_SECURITY_NUMBER'
-];
-
 const connectionTypesDictionary = {
   mysql: {
     type: 'database',
@@ -215,8 +180,6 @@ async function createOrUpdateConnection(connection) {
       access_mode_runbooks: accessModeRunbooks || accessModeRunbooks === 'enabled' ? 'enabled' : 'disabled',
       access_mode_exec: accessModeExec || accessModeExec === 'enabled' ? 'enabled' : 'disabled',
       access_mode_connect: accessModeConnect || accessModeConnect === 'enabled' ? 'enabled' : 'disabled',
-      redact_enabled: connection.datamasking !== undefined ? connection.datamasking : existingConnection.redact_enabled,
-      redact_types: connection.datamasking ? redact_types : existingConnection.redact_types,
       reviewers: [...new Set([...(existingConnection.reviewers || []), ...(connection.reviewGroups || [])])],
       access_schema: accessSchema || accessSchema === 'enabled' ? 'enabled' : 'disabled',
       jira_issue_template_id: jiraTemplateId || existingConnection.jira_issue_template_id,
@@ -248,8 +211,6 @@ async function createOrUpdateConnection(connection) {
       subtype: connectionTypesDictionary[connection.type].subtype,
       secret: secretsParsed,
       agent_id: connection.agentId,
-      redact_enabled: connection.datamasking,
-      redact_types: connection.datamasking ? redact_types : [],
       reviewers: connection.reviewGroups || [],
       access_mode_runbooks: connection.accessMode.runbook ? 'enabled' : 'disabled',
       access_mode_exec: connection.accessMode.web ? 'enabled' : 'disabled',
@@ -273,61 +234,6 @@ async function createOrUpdateConnection(connection) {
     console.log('Connection created successfully:', result, '\n');
     console.log('--------------------------------\n');
     return result;
-  }
-}
-
-// Function to get plugins
-async function getPlugins() {
-  console.log('Requesting plugins...');
-  const response = await fetch(`${apiUrl}/plugins`, {
-    method: 'GET',
-    headers: {
-      'Api-Key': apiKey,
-      'Content-Type': 'application/json'
-    }
-  });
-
-  console.log('Plugins fetched successfully.\n');
-  return response.json();
-}
-
-// Function to update the plugins
-async function updatePlugin(pluginName, connections, updatedConnection) {
-  console.log(`\nUpdating plugin ${pluginName} for connection "${updatedConnection.name}"...`);
-  const payload = {
-    name: pluginName,
-    priority: 0,
-    source: null,
-    connections
-  };
-
-  // Log the configuration that will be sent
-  console.log(`Request configuration for ${pluginName}:`, {
-    connection: updatedConnection,
-    total_connections: connections.length
-  }, '\n');
-
-  console.log(`Sending request to update plugin ${pluginName}...`);
-  const response = await fetch(`${apiUrl}/plugins/${pluginName}`, {
-    method: 'PUT',
-    headers: {
-      'Api-Key': apiKey,
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify(payload)
-  });
-
-  const result = await response.json();
-  // Log the response details
-  console.log(`Response from ${pluginName} update:`, {
-    status: response.status,
-    success: response.ok,
-    connection_found: result.connections?.some(conn => conn.id === updatedConnection.id),
-    connection_config: result.connections?.find(conn => conn.id === updatedConnection.id)
-  }, '\n');
-
-  if (!response.ok) {
-    console.log(`Warning: Plugin ${pluginName} update might have failed. Status: ${response.status}\n`);
   }
 }
 
@@ -377,6 +283,25 @@ async function processUpdatePlugins(payload) {
   }
 }
 
+async function createDataMaskingRuleConnection(connectionName, ruleIDs) {
+  console.log(`\nPROCESSING CREATE DATA MASKING RULE CONNECTION FOR "${connectionName}", ruleIDs="${ruleIDs}"\n`);
+  const payload = []
+  for (const ruleID of ruleIDs) {
+    payload.push({ rule_id: ruleID, status: 'active' });
+  }
+  const response = await fetch(`${apiUrl}/connections/${connectionName}/datamasking-rules`, {
+    method: 'PUT',
+    headers: {
+      'Api-Key': apiKey,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(payload)
+  });
+
+  const result = await response.json();
+  console.log(`Response from data masking rule creation, status=${response.status}, payload=${JSON.stringify(result)}`, '\n');
+}
+
 // Function to delete a connection
 async function deleteConnection(connectionIds) {
   console.log('DELETE CONNECTIONS\n');
@@ -413,6 +338,8 @@ async function handleActions(payload) {
   for (const item of payload) {
     if (item.action === 'create') {
       const createdOrUpdatedConnection = await createOrUpdateConnection(item);
+      const datamaskingRules = Array.isArray(item.datamaskingRules) ? item.datamaskingRules : [];
+      await createDataMaskingRuleConnection(createdOrUpdatedConnection.name, datamaskingRules);
 
       if (item.accessControl || item.runbook_config) {
         await processUpdatePlugins({
@@ -452,6 +379,12 @@ const incomingPayload = {
         web: false,
         native: false
       },
+      runbook_config: '/account-statment-prd/',
+      datamasking: false,
+      enableReview: false,
+      reviewGroups: ['group1', 'group2'],
+      schema: false,
+      accessControl: ['admin'],
       // Can be used either jiraTemplate to create a new one...
       jiraTemplate: {
         name: 'Database Access Request',
@@ -552,13 +485,7 @@ const incomingPayload = {
             ]
           }
         }
-      ],
-      runbook_config: '/account-statment-prd/',
-      datamasking: false,
-      enableReview: false,
-      reviewGroups: ['group1', 'group2'],
-      schema: false,
-      accessControl: ['admin']
+      ]
     }
     // {
     //   action: 'delete',
