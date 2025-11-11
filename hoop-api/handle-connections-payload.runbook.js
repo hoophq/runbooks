@@ -273,13 +273,36 @@ async function processUpdatePlugins(payload) {
     await updatePluginConnection('access_control', payload.connectionId, payload.accessControl);
     console.log('--------------------------------\n');
   }
+}
 
-  // Update the Runbooks plugin if runbook_config exists in the payload
-  if (payload.runbook_config) {
-    console.log(`\nUPDATE RUNBOOKS PLUGIN FOR CONNECTION "${payload.connectionName}"\n`);
+async function createRunbookRule(payload) {
+  console.log(`Sending request to create runbook rule...`);
+  const response = await fetch(`${apiUrl}/runbooks/rules`, {
+    method: 'POST',
+    headers: {
+      'Api-Key': apiKey,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      name: `Rule for ${payload.name}`,
+      description: "Runbook rules generated from runbook handle-connections-payload",
+      runbooks: [
+        {
+          repository: payload.runbook_config.repository,
+          name: payload.runbook_config.name,
+        },
+      ],
+      connections: [payload.name],
+      user_groups: [],
+    })
+  });
 
-    await updatePluginConnection('runbooks', payload.connectionId, [payload.runbook_config]);
-    console.log('--------------------------------\n');
+  const result = await response.json();
+
+  console.log(`Response from runbooks and connection id ${payload.connectionId} response:`, result, '\n');
+
+  if (!response.ok) {
+    console.log(`Warning: Runbooks and connection id ${payload.connectionId} update might have failed. Status: ${response.status}\n`);
   }
 }
 
@@ -341,7 +364,14 @@ async function handleActions(payload) {
       const datamaskingRules = Array.isArray(item.datamaskingRules) ? item.datamaskingRules : [];
       await createDataMaskingRuleConnection(createdOrUpdatedConnection.name, datamaskingRules);
 
-      if (item.accessControl || item.runbook_config) {
+      if (item.runbook_config) {
+        console.log(`\nCREATE RUNBOOKS RULE FOR CONNECTION "${item.name}"\n`);
+
+        await createRunbookRule(item);
+        console.log('--------------------------------\n');
+      }
+
+      if (item.accessControl) {
         await processUpdatePlugins({
           ...item,
           connectionName: createdOrUpdatedConnection.name,
@@ -379,7 +409,10 @@ const incomingPayload = {
         web: false,
         native: false
       },
-      runbook_config: '/account-statment-prd/',
+      runbook_config: {
+        repository: 'github.com/hoophq/runbooks',
+        name: '/account-statment-prd/',
+      },
       datamasking: false,
       enableReview: false,
       reviewGroups: ['group1', 'group2'],
