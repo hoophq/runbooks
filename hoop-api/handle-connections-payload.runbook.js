@@ -175,6 +175,7 @@ async function createOrUpdateConnection(connection) {
     // Merge the existing connection data with the new connection data
     const updatedConnection = {
       ...existingConnection,
+      resource_name: connection.resourceName || existingConnection.resource_name,
       agent_id: connection.agentId || existingConnection.agent_id,
       secret: { ...existingConnection.secrets, ...secretsParsed },
       access_mode_runbooks: accessModeRunbooks || accessModeRunbooks === 'enabled' ? 'enabled' : 'disabled',
@@ -210,6 +211,7 @@ async function createOrUpdateConnection(connection) {
       type: connectionTypesDictionary[connection.type].type,
       subtype: connectionTypesDictionary[connection.type].subtype,
       secret: secretsParsed,
+      resource_name: connection.resourceName,
       agent_id: connection.agentId,
       reviewers: connection.reviewGroups || [],
       access_mode_runbooks: connection.accessMode.runbook ? 'enabled' : 'disabled',
@@ -286,12 +288,7 @@ async function createRunbookRule(payload) {
     body: JSON.stringify({
       name: `Rule for ${payload.name}`,
       description: "Runbook rules generated from runbook handle-connections-payload",
-      runbooks: [
-        {
-          repository: payload.runbook_config.repository,
-          name: payload.runbook_config.name,
-        },
-      ],
+      runbooks: payload.runbook_config,
       connections: [payload.name],
       user_groups: [],
     })
@@ -299,10 +296,10 @@ async function createRunbookRule(payload) {
 
   const result = await response.json();
 
-  console.log(`Response from runbooks and connection id ${payload.connectionId} response:`, result, '\n');
+  console.log(`Response from runbooks rule creation for ${payload.name} response:`, result, '\n');
 
   if (!response.ok) {
-    console.log(`Warning: Runbooks and connection id ${payload.connectionId} update might have failed. Status: ${response.status}\n`);
+    console.log(`Warning: Runbooks rule creation for ${payload.name} update might have failed. Status: ${response.status}\n`);
   }
 }
 
@@ -364,7 +361,7 @@ async function handleActions(payload) {
       const datamaskingRules = Array.isArray(item.datamaskingRules) ? item.datamaskingRules : [];
       await createDataMaskingRuleConnection(createdOrUpdatedConnection.name, datamaskingRules);
 
-      if (item.runbook_config) {
+      if (item.runbook_config && item.runbook_config.length > 0) {
         console.log(`\nCREATE RUNBOOKS RULE FOR CONNECTION "${item.name}"\n`);
 
         await createRunbookRule(item);
@@ -409,10 +406,11 @@ const incomingPayload = {
         web: false,
         native: false
       },
-      runbook_config: {
+      runbook_config: [{
         repository: 'github.com/hoophq/runbooks',
         name: '/account-statment-prd/',
-      },
+      }],
+      resourceName: '',
       datamasking: false,
       enableReview: false,
       reviewGroups: ['group1', 'group2'],
