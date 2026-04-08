@@ -214,9 +214,9 @@ async function createOrUpdateConnection(connection) {
       resource_name: connection.resourceName,
       agent_id: connection.agentId,
       reviewers: connection.reviewGroups || [],
-      access_mode_runbooks: connection.accessMode.runbook ? 'enabled' : 'disabled',
-      access_mode_exec: connection.accessMode.web ? 'enabled' : 'disabled',
-      access_mode_connect: connection.accessMode.native ? 'enabled' : 'disabled',
+      access_mode_runbooks: connection.accessMode?.runbook ? 'enabled' : 'disabled',
+      access_mode_exec: connection.accessMode?.web ? 'enabled' : 'disabled',
+      access_mode_connect: connection.accessMode?.native ? 'enabled' : 'disabled',
       access_schema: connection.schema ? 'enabled' : 'disabled',
       jira_issue_template_id: jiraTemplateId,
       guardrail_rules: guardrailIds
@@ -233,6 +233,11 @@ async function createOrUpdateConnection(connection) {
     });
 
     const result = await response.json();
+    if (!response.ok) {
+      throw new Error(
+        `Error creating connection "${connection.name}": HTTP ${response.status} — ${JSON.stringify(result)}`
+      );
+    }
     console.log('Connection created successfully:', result, '\n');
     console.log('--------------------------------\n');
     return result;
@@ -277,7 +282,9 @@ async function processUpdatePlugins(payload) {
   }
 }
 
-async function createRunbookRule(payload) {
+async function createRunbookRule(payload, connectionName) {
+  // connectionName must match the name returned by POST/PUT /connections (see openapi.Connection.name).
+  const userGroups = Array.isArray(payload.user_groups) ? payload.user_groups : [];
   console.log(`Sending request to create runbook rule...`);
   const response = await fetch(`${apiUrl}/runbooks/rules`, {
     method: 'POST',
@@ -289,8 +296,8 @@ async function createRunbookRule(payload) {
       name: `Rule for ${payload.name}`,
       description: "Runbook rules generated from runbook handle-connections-payload",
       runbooks: payload.runbook_config,
-      connections: [payload.name],
-      user_groups: [],
+      connections: [connectionName],
+      user_groups: userGroups,
     })
   });
 
@@ -362,9 +369,9 @@ async function handleActions(payload) {
       await createDataMaskingRuleConnection(createdOrUpdatedConnection.name, datamaskingRules);
 
       if (item.runbook_config && item.runbook_config.length > 0) {
-        console.log(`\nCREATE RUNBOOKS RULE FOR CONNECTION "${item.name}"\n`);
+        console.log(`\nCREATE RUNBOOKS RULE FOR CONNECTION "${createdOrUpdatedConnection.name}"\n`);
 
-        await createRunbookRule(item);
+        await createRunbookRule(item, createdOrUpdatedConnection.name);
         console.log('--------------------------------\n');
       }
 
@@ -530,5 +537,8 @@ const incomingPayload = {{ .payload
       | required "payload is required"
       | type "textarea"}}
 
-// Process the incoming payload
-handleActions(incomingPayload.payload);
+// Process the incoming payload (await so failures surface; OpenAPI POST /connections returns 201).
+handleActions(incomingPayload.payload).catch((err) => {
+  console.error('handle-connections-payload failed:', err);
+  throw err;
+});
